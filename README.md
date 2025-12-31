@@ -34,26 +34,71 @@ build.bat
 - `-ysoserial`: ysoserial.jar 文件路径
 - `-ysuserial`: ysuserial.jar 文件路径
 
+### 使用示例
+
+#### 基础用法
+```bash
+# 使用 ysoserial payload
+mysql -h 192.168.1.100 -u yso_CommonsCollections5_calc -p
+
+# 使用 ysuserial payload
+mysql -h 192.168.1.100 -u ysu_CommonsCollections5_calc -p
+```
+
+连接后执行：
+```sql
+SHOW SESSION STATUS;
+```
+
+#### URL 编码用法（支持特殊字符和空格）
+
+当命令中包含空格或特殊字符时，需要对 username 进行 URL 编码：
+
+| 命令 | URL 编码后的 username |
+|------|---------------------|
+| `calc` | `yso_CommonsCollections5_calc` |
+| `touch /tmp/pwned` | `yso_CommonsCollections5_touch%20/tmp/pwned` |
 
 ## 工作原理
 
 1. 服务器监听指定端口，等待客户端连接
 2. 客户端连接时，服务器发送 MySQL 握手包
-3. 解析客户端发送的用户名，根据前缀判断使用的 payload 类型（yso/ysu）
-4. 当客户端执行 `SHOW SESSION STATUS` 查询时：
+3. 服务器从客户端认证数据包中提取用户名（偏移量 36 开始）
+4. **对用户名进行 URL 解码**，支持特殊字符和空格
+5. 解析用户名前缀判断使用的 payload 类型（yso/ysu）
+6. 当客户端执行 `SHOW SESSION STATUS` 查询时：
    - 解析用户名获取 gadget 类型和命令
    - 调用 ysoserial/ysuserial 生成反序列化 payload
    - 将 payload 包装在查询结果中返回
 
+### username 格式
+
+```
+{前缀}_{gadget}_{命令}
+```
+
+- **前缀**: `yso` (ysoserial) 或 `ysu` (ysuserial)
+- **gadget**: 反序列化利用链名称，如 `CommonsCollections5`
+- **命令**: 要执行的命令，支持 URL 编码
+
+### URL 解码说明
+
+- 服务器会自动对提取的 username 进行 URL 解码
+- 如果解码失败，会保留原始值并记录警告日志
+- 这使得可以在 payload 命令中使用空格、引号等特殊字符
+
 ## 环境要求
 
-- Go 1.x
+- Go 1.20+
 - Java 运行环境
 - ysoserial 或 ysuserial jar 文件
 
-## 版本
+## 更新日志
 
-v0.4
+### v0.4 (2025-12-31)
+- ✨ 新增 username URL 解码功能，支持在 payload 命令中使用特殊字符和空格
+- 🔧 新增 `port` 参数，可以自定义端口
+- ⬆️ Go 版本要求升级到 1.20
 
 ## 注意事项
 
